@@ -1,0 +1,19 @@
+{
+    "entry": "AddonsManager.js",
+    "name": "AddonsManager",
+    "type": "lse-quickjs",
+    "version": "1.0.0",
+    "dependencies": [
+        {
+            "name": "legacy-script-engine-quickjs"
+        }
+    ],
+    "optionalDependencies": [
+        {
+            "name": "GMLIB"
+        },
+        {
+            "name": "GMLIB-LegacyRemoteCallApi"
+        }
+    ]
+}

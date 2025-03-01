@@ -1,0 +1,28 @@
+{
+    "format_version": 2,
+    "tooth": "github.com/pingguo114514/AddonsManager",
+    "version": "1.0.0",
+    "info": {
+        "name": "AddonsManager",
+        "description": "Addon管理器",
+        "author": "pingguo114514",
+        "tags": [
+            "levilamina",
+            "lse",
+            "plugin",
+            "addon"
+        ]
+    },
+    "dependencies": {
+        "gitea.litebds.com/ShrBox/7-zip": "24.x"
+    },
+    "asset_url": "https://github.com/pingguo114514/AddonsManager/releases/download/v$(version)/AddonsManager.zip",
+    "files": {
+        "place": [
+            {
+                "src": "AddonsManager/*",
+                "dest": "plugins/AddonsManager/"
+            }
+        ]
+    }
+}
