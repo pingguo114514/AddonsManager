@@ -2,7 +2,7 @@
     "entry": "AddonsManager.js",
     "name": "AddonsManager",
     "type": "lse-quickjs",
-    "version": "1.0.0",
+    "version": "${version}",
     "dependencies": [
         {
             "name": "legacy-script-engine-quickjs"

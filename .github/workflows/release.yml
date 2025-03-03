@@ -1,0 +1,57 @@
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create directory structure
+        run: |
+          New-Item -Name AddonsManager -ItemType Directory
+          Copy-Item AddonsManager.js, manifest.json -Destination AddonsManager
+
+      - name: Replace version in manifest
+        run: |
+           $version = "${{ github.event.release.tag_name }}" -replace '.*?([0-9]+\.[0-9]+\.[0-9]+).*', '$1'
+           (Get-Content AddonsManager/manifest.json) -replace '\$\{version\}', $version | Set-Content AddonsManager/manifest.json
+
+      - name: Package files
+        run: |
+          Compress-Archive -Path AddonsManager -DestinationPath package.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ github.sha }}
+          path: package.zip
+
+  upload-to-release:
+    needs:
+      - pack
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ github.sha }}
+          path: artifact
+
+      - run: |
+          unzip artifact/package.zip -d artifact/
+          rm artifact/package.zip
+          cp LICENSE artifact/
+
+      - run: |
+          zip -r ../${{ github.event.repository.name }}.zip *
+        working-directory: artifact
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ github.event.repository.name }}.zip
