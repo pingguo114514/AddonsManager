@@ -4,7 +4,7 @@
 function GetLevelName() {
     if (ll.listPlugins().includes('GMLIB-LegacyRemoteCallApi')) {
         const { Minecraft } = require('./GMLIB-LegacyRemoteCallApi/lib/GMLIB_API-JS');
-        Minecraft.getWorldName();
+        return Minecraft.getWorldName();
     }
     return /level-name=(.*)/.exec(file.readFrom('./server.properties'))[1];
 }
@@ -162,6 +162,7 @@ function removeAddon(uuid, type) {
 
 // 事件监听
 mc.listen('onServerStarted', async () => {
+    if(!file.exists('./plugins/AddonsManager/addons')) file.mkdir('./plugins/AddonsManager/addons');
     const addonFiles = file.getFilesList('./plugins/AddonsManager/addons')
         .filter(f => !file.checkIsDir(f) && ['mcpack', 'mcaddon', 'zip'].includes(f.split('.').pop()));
 
