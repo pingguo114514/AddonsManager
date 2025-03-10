@@ -37,7 +37,13 @@ async function installAddon(filePath) {
 
         await cmdAsync(`7za x "${filePath}" -o"${tempPath}"`);
         const manifest = JSON.parse(file.readFrom(`${tempPath}/manifest.json`));
-        const type = manifest.modules[0].type === 'data' ? 'behavior' : 'resource';
+        let type;
+        if (['data', 'script'].includes(manifest.modules[0].type)) type = 'behavior';
+        else if (manifest.modules[0].type === 'resources') type = 'resource';
+        else {
+            logger.error(`不支持的addon类型: ${manifest.modules[0].type}`);
+            return false;
+        }
         if (listInstalledPacks()[type].map(p => p.uuid).includes(manifest.header.uuid)) {
             logger.warn(`${fileName} 已存在，跳过安装`);
             return false;
@@ -86,15 +92,17 @@ function listInstalledPacks() {
                 const manifestPath = `${packsDir}/${dirName}/manifest.json`;
                 try {
                     const manifest = JSON.parse(file.readFrom(manifestPath));
-                    const registeredPath = `./worlds/${levelName}/world_${type}_packs.json`;
-                    const registeredPacks = file.exists(registeredPath)
-                        ? JSON.parse(file.readFrom(registeredPath))
-                        : [];
-                    const registeredInfo = registeredPacks.find(p => p.pack_id === manifest.header.uuid);
+                    // const registeredPath = `./worlds/${levelName}/world_${type}_packs.json`;
+                    // const registeredPacks = file.exists(registeredPath)
+                    //     ? JSON.parse(file.readFrom(registeredPath))
+                    //     : [];
+                    // const registeredInfo = registeredPacks.find(p => p.pack_id === manifest.header.uuid);
 
                     packs.push({
                         uuid: manifest.header.uuid,
-                        version: manifest.header.version.join('.') || "未知",
+                        version: (Array.isArray(manifest.header.version)
+                            ? manifest.header.version.join('.')
+                            : manifest.header.version) || "未知",
                         name: manifest.header.name,
                         folderName: dirName,
                         description: manifest.header.description || "无描述"
@@ -160,9 +168,8 @@ function removeAddon(uuid, type) {
     return false;
 }
 
-// 事件监听
 mc.listen('onServerStarted', async () => {
-    if(!file.exists('./plugins/AddonsManager/addons')) file.mkdir('./plugins/AddonsManager/addons');
+    if (!file.exists('./plugins/AddonsManager/addons')) file.mkdir('./plugins/AddonsManager/addons');
     const addonFiles = file.getFilesList('./plugins/AddonsManager/addons')
         .filter(f => !file.checkIsDir(f) && ['mcpack', 'mcaddon', 'zip'].includes(f.split('.').pop()));
 

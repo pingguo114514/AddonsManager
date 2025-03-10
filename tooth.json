@@ -1,13 +1,12 @@
 {
     "format_version": 2,
     "tooth": "github.com/pingguo114514/AddonsManager",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "info": {
         "name": "AddonsManager",
         "description": "Addon管理器",
         "author": "pingguo114514",
         "tags": [
-            "levilamina",
             "lse",
             "plugin",
             "addon"
