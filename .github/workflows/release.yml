@@ -17,7 +17,7 @@ jobs:
       - name: Replace version in manifest
         run: |
            $version = "${{ github.event.release.tag_name }}" -replace '.*?([0-9]+\.[0-9]+\.[0-9]+).*', '$1'
-           (Get-Content AddonsManager/manifest.json) -replace '\$\{version\}', $version | Set-Content AddonsManager/manifest.json
+           (Get-Content AddonsManager/manifest.json -Raw | ConvertFrom-Json | Add-Member -MemberType NoteProperty -Name 'version' -Value $version -PassThru) | ConvertTo-Json | Set-Content AddonsManager/manifest.json
 
       - name: Package files
         run: |
