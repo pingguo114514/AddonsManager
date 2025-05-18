@@ -1,7 +1,7 @@
 {
     "format_version": 2,
     "tooth": "github.com/pingguo114514/AddonsManager",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "info": {
         "name": "AddonsManager",
         "description": "Addon管理器",
