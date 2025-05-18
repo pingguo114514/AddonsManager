@@ -17,25 +17,41 @@ async function cmdAsync(command) {
     });
 }
 
-async function installAddon(filePath) {
+async function installAddon(filePath, isDir = false) {
     // 获取文件名和扩展名
     const fileName = filePath.split(/[\\/]/).pop();
     const fileExt = fileName.split('.').pop();
-
     // 校验文件类型
-    if (!['mcpack', 'mcaddon', 'zip'].includes(fileExt)) {
+    if (!isDir && !['mcpack', 'mcaddon', 'zip'].includes(fileExt)) {
         logger.error(`不支持的文件类型: ${fileName}`);
         return false;
     }
-
-    const addonName = fileName.split('.').slice(0, -1).join('.');
     logger.warn(`正在安装 ${fileName}`);
-    const tempPath = `./plugins/AddonsManager/temp/${addonName}`;
-
+    const tempPath = isDir ? filePath : `${filePath}/../temp/${fileName}`;
     try {
-        if (file.exists(tempPath)) file.delete(tempPath);
-
-        await cmdAsync(`7za x "${filePath}" -o"${tempPath}"`);
+        if (!isDir) {
+            if (file.exists(tempPath)) file.delete(tempPath);
+            await cmdAsync(`7za x "${filePath}" -o"${tempPath}"`);
+        }
+        if (!file.exists(`${tempPath}/manifest.json`)) {
+            logger.warn(`未在 ${fileName} 中找到 manifest.json 文件，正在递归查找`);
+            let success = false;
+            for (const fileName of file.getFilesList(tempPath)) {
+                if (file.checkIsDir(`${tempPath}/${fileName}`)) {
+                    let res = await installAddon(`${tempPath}/${fileName}`, true);
+                    if (res) success = true;
+                } else if (['mcpack', 'mcaddon', 'zip'].includes(fileName.split('.').pop())) {
+                    let res = await installAddon(`${tempPath}/${fileName}`, false);
+                    if (res) success = true;
+                }
+            }
+            if (!success) logger.error('未找到有效的addon');
+            else {
+                file.delete(tempPath);
+                file.delete(filePath);
+            }
+            return success;
+        }
         const manifest = JSON.parse(file.readFrom(`${tempPath}/manifest.json`));
         let type;
         if (['data', 'script'].includes(manifest.modules[0].type)) type = 'behavior';
@@ -63,9 +79,9 @@ async function installAddon(filePath) {
             version: manifest.header.version
         });
         file.writeTo(packsPath, JSON.stringify(packsData, null, 4));
-
         logger.info(`成功安装${type === 'behavior' ? '行为' : '资源'}包 ${manifest.header.name}`);
         file.delete(filePath);
+        file.delete(tempPath);
         return true;
     } catch (error) {
         logger.error(`安装 ${fileName} 时出错：${error.output}`);
@@ -180,12 +196,13 @@ mc.listen('onServerStarted', async () => {
     cmd.setEnum('enumList', ['list']);
     cmd.setEnum('enumAdd', ['Add']);
     cmd.setEnum('enumRemove', ['remove']);
+    cmd.setEnum('enumType', ['b', 'r'])
     cmd.mandatory('enumList', ParamType.Enum, 'enumList', 1);
     cmd.mandatory('enumAdd', ParamType.Enum, 'enumAdd', 1);
     cmd.mandatory('enumRemove', ParamType.Enum, 'enumRemove', 1);
     cmd.mandatory('Path', ParamType.RawText);
     cmd.mandatory('uuid', ParamType.String);
-    cmd.mandatory('type', ParamType.String);
+    cmd.mandatory('type', ParamType.Enum, 'enumType', 1);
     cmd.overload(['enumList']);
     cmd.overload(['enumAdd', 'Path']);
     cmd.overload(['enumRemove', 'type', 'uuid']);
@@ -195,7 +212,7 @@ mc.listen('onServerStarted', async () => {
             let out = `当前安装了${list.behavior.length}个行为包，${list.resource.length}个资源包\n`
             out += `\n行为包：\n`;
             out += list.behavior.map(p => `名称:${p.name}\n介绍:${p.description}\n版本:${p.version}\nuuid:${p.uuid}`).join('\n-----------------------\n');
-            out += `\n资源包：\n`;
+            out += `\n\n资源包：\n`;
             out += list.resource.map(p => `名称:${p.name}\n介绍:${p.description}\n版本:${p.version}\nuuid:${p.uuid}`).join('\n-----------------------\n');
             output.success(out);
         } else if (results.enumAdd) {
