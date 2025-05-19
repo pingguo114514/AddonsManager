@@ -1,58 +1,61 @@
 // LiteLoader-AIDS automatic generated
 /// <reference path="c:\LSE/dts/HelperLib-master/src/index.d.ts"/> 
-
+const path = require('path');
+const fs = require('fs');
+const JSON5 = require('json5');
+const { execSync } = require('child_process');
+global.ll.import = ll.imports;
 function GetLevelName() {
     if (ll.listPlugins().includes('GMLIB-LegacyRemoteCallApi')) {
-        const { Minecraft } = require('./GMLIB-LegacyRemoteCallApi/lib/GMLIB_API-JS');
+        const { Minecraft } = require('../GMLIB-LegacyRemoteCallApi/lib/GMLIB_API-JS');
         return Minecraft.getWorldName();
     }
-    return /level-name=(.*)/.exec(file.readFrom('./server.properties'))[1];
+    return /level-name=(.*)/.exec(fs.readFileSync('./server.properties'))[1];
 }
-
-async function cmdAsync(command) {
-    return new Promise((resolve, reject) => {
-        system.cmd(command, (exitcode, output) => {
-            exitcode === 0 ? resolve(output) : reject({ exitcode, output });
-        });
-    });
+function system(cmd) {
+    try {
+        return execSync(cmd);
+    } catch (e) {
+        console.error(`命令执行失败，退出码: ${error.status}`);
+        console.error(`错误输出: ${error.stderr?.toString()}`);
+        throw e;
+    }
 }
-
-async function installAddon(filePath, isDir = false) {
+function installAddon(filePath, isDir = false) {
     // 获取文件名和扩展名
-    const fileName = filePath.split(/[\\/]/).pop();
-    const fileExt = fileName.split('.').pop();
+    const fileName = path.basename(filePath);
+    const fileExt = path.extname(filePath);
     // 校验文件类型
-    if (!isDir && !['mcpack', 'mcaddon', 'zip'].includes(fileExt)) {
+    if (!isDir && !['.mcpack', '.mcaddon', '.zip'].includes(fileExt)) {
         logger.error(`不支持的文件类型: ${fileName}`);
         return false;
     }
-    logger.warn(`正在安装 ${fileName}`);
-    const tempPath = isDir ? filePath : `${filePath}/../temp/${fileName}`;
+    const tempPath = isDir ? filePath : path.join(filePath, '..', 'temp', fileName);
     try {
         if (!isDir) {
-            if (file.exists(tempPath)) file.delete(tempPath);
-            await cmdAsync(`7za x "${filePath}" -o"${tempPath}"`);
+            if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { recursive: true });
+            execSync(`7za x "${filePath}" -o"${tempPath}"`)
         }
-        if (!file.exists(`${tempPath}/manifest.json`)) {
-            logger.warn(`未在 ${fileName} 中找到 manifest.json 文件，正在递归查找`);
+        if (!fs.existsSync(path.join(tempPath, 'manifest.json'))) {
+            // logger.warn(`未在 ${fileName} 中找到 manifest.json 文件，正在递归查找`);
             let success = false;
-            for (const fileName of file.getFilesList(tempPath)) {
-                if (file.checkIsDir(`${tempPath}/${fileName}`)) {
-                    let res = await installAddon(`${tempPath}/${fileName}`, true);
+            for (const fileName of File.getFilesList(tempPath)) {
+                if (File.checkIsDir(path.join(tempPath, fileName))) {
+                    let res = installAddon(path.join(tempPath, fileName), true);
                     if (res) success = true;
                 } else if (['mcpack', 'mcaddon', 'zip'].includes(fileName.split('.').pop())) {
-                    let res = await installAddon(`${tempPath}/${fileName}`, false);
+                    let res = installAddon(path.join(tempPath, fileName), false);
                     if (res) success = true;
                 }
             }
-            if (!success) logger.error('未找到有效的addon');
-            else {
-                file.delete(tempPath);
-                file.delete(filePath);
+            if (success) {
+                File.delete(tempPath);
+                File.delete(filePath);
             }
             return success;
         }
-        const manifest = JSON.parse(file.readFrom(`${tempPath}/manifest.json`));
+        logger.warn(`正在安装 ${fileName}`);
+        const manifest = JSON5.parse(fs.readFileSync(path.join(tempPath, 'manifest.json')));// 为什么会有人在JSON里面写注释啊
         let type;
         if (['data', 'script'].includes(manifest.modules[0].type)) type = 'behavior';
         else if (manifest.modules[0].type === 'resources') type = 'resource';
@@ -64,27 +67,24 @@ async function installAddon(filePath, isDir = false) {
             logger.warn(`${fileName} 已存在，跳过安装`);
             return false;
         }
-        const targetDir = `./worlds/${GetLevelName()}/${type}_packs`;
+        const targetDir = path.join('./worlds', GetLevelName(), `${type}_packs`);
 
-        if (!file.exists(targetDir)) {
-            file.mkdir(targetDir);
-        }
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir);
 
-        await cmdAsync(`powershell Move-Item -Force -Path "'${tempPath}'" -Destination "'${targetDir}'"`);
-
+        system(`powershell Move-Item -Force -LiteralPath "'${tempPath}'" -Destination "'${targetDir}/${fileName}_${manifest.header.uuid}'"`);
         const packsPath = `./worlds/${GetLevelName()}/world_${type}_packs.json`;
-        const packsData = file.exists(packsPath) ? JSON.parse(file.readFrom(packsPath)) : [];
+        const packsData = fs.existsSync(packsPath) ? JSON5.parse(fs.readFileSync(packsPath)) : [];
         packsData.push({
             pack_id: manifest.header.uuid,
             version: manifest.header.version
         });
-        file.writeTo(packsPath, JSON.stringify(packsData, null, 4));
+        fs.writeFileSync(packsPath, JSON.stringify(packsData, null, 4));
         logger.info(`成功安装${type === 'behavior' ? '行为' : '资源'}包 ${manifest.header.name}`);
-        file.delete(filePath);
-        file.delete(tempPath);
+        File.delete(filePath);
+        File.delete(tempPath);
         return true;
     } catch (error) {
-        logger.error(`安装 ${fileName} 时出错：${error.output}`);
+        logger.error(`安装 ${fileName} 时出错：${error.message}`);
         return false;
     }
 }
@@ -100,17 +100,17 @@ function listInstalledPacks() {
         const packs = [];
         const packsDir = `./worlds/${levelName}/${type}_packs`;
 
-        if (file.exists(packsDir)) {
-            const dirs = file.getFilesList(packsDir)
-                .filter(f => file.checkIsDir(`${packsDir}/${f}`));
+        if (fs.existsSync(packsDir)) {
+            const dirs = File.getFilesList(packsDir)
+                .filter(f => File.checkIsDir(`${packsDir}/${f}`));
 
             dirs.forEach(dirName => {
                 const manifestPath = `${packsDir}/${dirName}/manifest.json`;
                 try {
-                    const manifest = JSON.parse(file.readFrom(manifestPath));
+                    const manifest = JSON5.parse(fs.readFileSync(manifestPath));
                     // const registeredPath = `./worlds/${levelName}/world_${type}_packs.json`;
-                    // const registeredPacks = file.exists(registeredPath)
-                    //     ? JSON.parse(file.readFrom(registeredPath))
+                    // const registeredPacks = fs.existsSync(registeredPath)
+                    //     ? JSON5.parse(fs.readFileSync(registeredPath))
                     //     : [];
                     // const registeredInfo = registeredPacks.find(p => p.pack_id === manifest.header.uuid);
 
@@ -158,41 +158,31 @@ function removeAddon(uuid, type) {
     }
 
     // 更新JSON文件
-    const packsData = file.exists(packsPath)
-        ? JSON.parse(file.readFrom(packsPath))
+    const packsData = fs.existsSync(packsPath)
+        ? JSON5.parse(fs.readFileSync(packsPath))
         : [];
     const index = packsData.findIndex(p => p.pack_id === uuid);
     if (index === -1) return false;
 
     packsData.splice(index, 1);
-    file.writeTo(packsPath, JSON.stringify(packsData, null, 4));
-
+    fs.writeFileSync(packsPath, JSON.stringify(packsData, null, 4));
 
     const targetDir = `${packsDir}/${targetPack.folderName}`;
 
-    if (file.exists(targetDir)) {
-        if (file.delete(targetDir)) {
+    if (fs.existsSync(targetDir)) {
+        if (File.delete(targetDir)) {
             logger.info(`已删除${type === 'behavior' ? '行为' : '资源'}包：${targetPack.name}`);
             return true;
         } else {
             logger.error(`删除包时出错：${error}`);
             return false;
         }
-
     }
     logger.warn(`未找到包目录: ${targetPack.name}`);
     return false;
 }
-
-mc.listen('onServerStarted', async () => {
-    if (!file.exists('./plugins/AddonsManager/addons')) file.mkdir('./plugins/AddonsManager/addons');
-    const addonFiles = file.getFilesList('./plugins/AddonsManager/addons')
-        .filter(f => !file.checkIsDir(f) && ['mcpack', 'mcaddon', 'zip'].includes(f.split('.').pop()));
-
-    for (const f of addonFiles) {
-        await installAddon(`./plugins/AddonsManager/addons/${f}`);
-    }
-    let cmd = mc.newCommand('addons', '管理addon', PermType.Console);
+mc.listen('onServerStarted', () => {
+    let cmd = mc.newCommand('addons', '管理服务器的Addon', PermType.Console);
     cmd.setEnum('enumList', ['list']);
     cmd.setEnum('enumAdd', ['Add']);
     cmd.setEnum('enumRemove', ['remove']);
@@ -231,4 +221,10 @@ mc.listen('onServerStarted', async () => {
             }
         }
     });
+    if (!fs.existsSync('./plugins/AddonsManager/addons')) fs.mkdirSync('./plugins/AddonsManager/addons');
+    const addonFiles = File.getFilesList('./plugins/AddonsManager/addons')
+        .filter(f => !File.checkIsDir(f) && ['mcpack', 'mcaddon', 'zip'].includes(f.split('.').pop()));
+    for (const f of addonFiles) {
+        installAddon(`./plugins/AddonsManager/addons/${f}`);
+    }
 });

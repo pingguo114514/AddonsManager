@@ -12,7 +12,7 @@ jobs:
       - name: Create directory structure
         run: |
           New-Item -Name AddonsManager -ItemType Directory
-          Copy-Item AddonsManager.js, manifest.json -Destination AddonsManager
+          Copy-Item -Path AddonsManager.js, manifest.json, package.json, package-lock.json, node_modules -Destination AddonsManager -Recurse -Force
 
       - name: Replace version in manifest
         run: |

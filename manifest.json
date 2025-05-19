@@ -1,10 +1,10 @@
 {
     "entry": "AddonsManager.js",
     "name": "AddonsManager",
-    "type": "lse-quickjs",
+    "type": "lse-nodejs",
     "dependencies": [
         {
-            "name": "legacy-script-engine-quickjs"
+            "name": "legacy-script-engine-nodejs"
         }
     ],
     "optionalDependencies": [
